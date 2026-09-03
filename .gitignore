@@ -1,0 +1,30 @@
+# Raw data (too large for git; re-downloaded from TLC)
+TaxiData/
+
+# Environment / secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+
+# dbt
+dbt/taxi_analytics/target/
+dbt/taxi_analytics/dbt_packages/
+dbt/taxi_analytics/logs/
+dbt/taxi_analytics/.user.yml
+
+# Airflow
+logs/
+airflow/logs/
+airflow/plugins/__pycache__/
+
+# macOS
+.DS_Store
+
+# Tableau (workbooks with embedded extracts can get huge; keep .twb, ignore .hyper extracts)
+dashboard/*.hyper

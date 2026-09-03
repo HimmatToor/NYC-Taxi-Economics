@@ -1,0 +1,100 @@
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: docker/airflow.Dockerfile
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-db/${AIRFLOW_DB_NAME}
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    # Warehouse connection, used by ETL scripts and dbt (via profiles.yml env_var lookups)
+    WAREHOUSE_DB_HOST: warehouse-db
+    WAREHOUSE_DB_PORT: 5432
+    WAREHOUSE_DB_NAME: ${WAREHOUSE_DB_NAME}
+    WAREHOUSE_DB_USER: ${WAREHOUSE_DB_USER}
+    WAREHOUSE_DB_PASSWORD: ${WAREHOUSE_DB_PASSWORD}
+    DBT_PROFILES_DIR: /opt/airflow/dbt
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./etl:/opt/airflow/etl
+    - ./dbt:/opt/airflow/dbt
+    - ./TaxiData:/opt/airflow/TaxiData:ro
+    - ./airflow_logs:/opt/airflow/logs
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    airflow-db:
+      condition: service_healthy
+    warehouse-db:
+      condition: service_healthy
+
+services:
+  warehouse-db:
+    image: postgres:16-alpine
+    container_name: taxi_warehouse_db
+    environment:
+      POSTGRES_DB: ${WAREHOUSE_DB_NAME}
+      POSTGRES_USER: ${WAREHOUSE_DB_USER}
+      POSTGRES_PASSWORD: ${WAREHOUSE_DB_PASSWORD}
+    ports:
+      - "${WAREHOUSE_DB_PORT:-5432}:5432"
+    volumes:
+      - warehouse_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WAREHOUSE_DB_USER} -d ${WAREHOUSE_DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  airflow-db:
+    image: postgres:16-alpine
+    container_name: taxi_airflow_db
+    environment:
+      POSTGRES_DB: ${AIRFLOW_DB_NAME}
+      POSTGRES_USER: ${AIRFLOW_DB_USER}
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+    volumes:
+      - airflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIRFLOW_DB_USER} -d ${AIRFLOW_DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: taxi_airflow_init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username "${AIRFLOW_ADMIN_USER}" \
+          --password "${AIRFLOW_ADMIN_PASSWORD}" \
+          --firstname Admin --lastname User \
+          --role Admin --email admin@example.com || true
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: taxi_airflow_webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      - airflow-init
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: taxi_airflow_scheduler
+    command: scheduler
+    depends_on:
+      - airflow-init
+
+volumes:
+  warehouse_pgdata:
+  airflow_pgdata:

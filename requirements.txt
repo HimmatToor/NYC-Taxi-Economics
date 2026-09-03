@@ -1,0 +1,15 @@
+# Local dev: notebooks, SQL analysis, ML. (Airflow/dbt deps are pinned
+# separately in docker/requirements-airflow.txt and installed in the container.)
+
+pandas==2.1.4
+numpy==1.26.4
+pyarrow==15.0.2
+scikit-learn==1.2.2
+xgboost==2.0.3
+statsmodels==0.14.1
+matplotlib==3.8.2
+seaborn==0.13.2
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9
+python-dotenv==1.0.1
+jupyterlab==4.0.11

@@ -1,0 +1,12 @@
+taxi_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('WAREHOUSE_DB_HOST') }}"
+      port: "{{ env_var('WAREHOUSE_DB_PORT', '5432') | as_number }}"
+      dbname: "{{ env_var('WAREHOUSE_DB_NAME') }}"
+      user: "{{ env_var('WAREHOUSE_DB_USER') }}"
+      password: "{{ env_var('WAREHOUSE_DB_PASSWORD') }}"
+      schema: dbt_dev
+      threads: 4

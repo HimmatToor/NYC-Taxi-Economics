@@ -1,0 +1,24 @@
+version: 2
+
+models:
+  - name: stg_yellow_trips
+    description: Yellow taxi trips, renamed/typed to the common trip schema. Unfiltered.
+    columns:
+      - name: taxi_type
+        data_tests:
+          - accepted_values: { values: ["yellow"] }
+      - name: pickup_datetime
+        data_tests: [not_null]
+      - name: pu_location_id
+        data_tests: [not_null]
+
+  - name: stg_green_trips
+    description: Green taxi trips, renamed/typed to the common trip schema. Unfiltered.
+    columns:
+      - name: taxi_type
+        data_tests:
+          - accepted_values: { values: ["green"] }
+      - name: pickup_datetime
+        data_tests: [not_null]
+      - name: pu_location_id
+        data_tests: [not_null]

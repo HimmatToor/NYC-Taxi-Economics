@@ -1,0 +1,8 @@
+version: 2
+
+seeds:
+  - name: taxi_zone_lookup
+    description: Official TLC taxi zone lookup table (LocationID -> Borough/Zone/service_zone).
+    columns:
+      - name: locationid
+        data_tests: [unique, not_null]

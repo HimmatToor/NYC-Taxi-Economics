@@ -1,0 +1,8 @@
+version: 2
+
+models:
+  - name: int_trips_unioned
+    description: Yellow + green trips unioned on a common schema, with data-quality flag columns attached (nothing filtered out here).
+    columns:
+      - name: is_valid_trip
+        data_tests: [not_null]

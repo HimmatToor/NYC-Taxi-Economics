@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: Raw TLC trip data, loaded as-is from parquet by etl/load_raw.py.
+    tables:
+      - name: yellow_trips
+        description: One row per yellow taxi trip, one source file per month.
+        loaded_at_field: _loaded_at
+      - name: green_trips
+        description: One row per green taxi trip, one source file per month.
+        loaded_at_field: _loaded_at
