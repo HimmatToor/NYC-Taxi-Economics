@@ -100,15 +100,3 @@ out-of-range timestamps).
    python -m venv .venv && source .venv/bin/activate
    pip install -r requirements.txt
    ```
-
-## Status
-
-- [x] Warehouse schema (`raw`) + idempotent parquet loader
-- [x] dbt staging / intermediate / marts models + tests
-- [x] Airflow DAG (monthly, backfillable)
-- [x] Standalone analytical SQL (`dbt/taxi_analytics/analyses/`)
-- [ ] Exploratory notebooks + written report
-- [ ] Tableau dashboard
-- [ ] ML: tip prediction
-- [ ] ML: fare prediction
-- [ ] ML: demand forecasting
