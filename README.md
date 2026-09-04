@@ -1,101 +1,90 @@
 # NYC Taxi Economics
 
-An end-to-end data analytics project on NYC TLC yellow and green taxi trip
-data (full calendar year 2025, ~42M trips), built to demonstrate data
-engineering, SQL/analytics engineering, and machine learning practices
-together on one dataset.
-
-**Question the project answers:** what drives fares, tipping behavior, and
-ride demand across NYC's taxi market, and how do the two taxi types differ?
+Data engineering + analytics + ML project on NYC TLC yellow and green taxi
+trips, full calendar year 2025 (~42M trips). Looking at what drives fares,
+tipping, and demand across the taxi market, and how yellow and green compare.
 
 ## Architecture
 
+Raw parquet files get loaded into Postgres, transformed with dbt, and
+orchestrated with Airflow. Everything runs in Docker.
+
 ```
-Raw parquet (TaxiData/) ──► etl/load_raw.py ──► Postgres: raw.yellow_trips, raw.green_trips
-                                                          │
-                                              dbt staging models (rename/cast, 1:1 with source)
-                                                          │
-                                              dbt intermediate model (union + data-quality flags)
-                                                          │
-                                              dbt marts (dim_zone, dim_date, fact_trips [incremental],
-                                                          agg_daily_zone, agg_hourly_demand)
-                                                          │
-                        ┌─────────────────────────────────┼─────────────────────────────┐
-                        ▼                                 ▼                             ▼
-                Tableau dashboard              Jupyter notebooks + report      ML models (tip, fare,
-                (reads marts directly)         (SQL-heavy exploratory work)     demand forecasting)
+TaxiData/ (parquet)
+   -> etl/load_raw.py
+   -> Postgres raw schema (raw.yellow_trips, raw.green_trips)
+   -> dbt staging (rename/cast, 1:1 with source)
+   -> dbt intermediate (union yellow+green, add QC flags)
+   -> dbt marts (fact_trips, dim_zone, dim_date, aggregates, dq tables)
+   -> Tableau / notebooks / ML
 ```
-
-Orchestrated by **Airflow** (monthly-partitioned DAG, backfillable), transformed
-with **dbt** (tested, documented, incremental), stored in **Postgres**, both
-running in **Docker**.
-
-## Why this stack
-
-- **Postgres + Docker**: a real relational warehouse instead of flat files, containerized so setup is one command and reproducible from a clean checkout.
-- **dbt**: industry-standard analytics engineering tool. Staging/intermediate/marts layering, schema tests (`not_null`, `unique`, `relationships`, `accepted_values`), incremental models, and a lineage graph (`dbt docs generate`) — all things a hand-rolled SQL script can't give you.
-- **Airflow**: scheduled, backfillable, retry-aware orchestration rather than a script you remember to run. The DAG is monthly-partitioned so a single month can be reprocessed without touching the rest of the year.
-- **dbt `analyses/`**: hand-written analytical SQL (window functions, CTEs, z-score anomaly detection) that isn't part of the warehouse build but demonstrates SQL depth directly — see [dbt/taxi_analytics/analyses/](dbt/taxi_analytics/analyses/).
 
 ## Repo layout
 
 ```
-TaxiData/                    raw parquet, gitignored (yellow ~869MB, green ~14MB, 2025)
-docker-compose.yml           warehouse Postgres + Airflow (LocalExecutor)
-docker/                      Airflow image build + its extra requirements
-dags/taxi_pipeline.py        monthly Airflow DAG: load raw -> dbt seed/run/test
+TaxiData/                    raw parquet, gitignored
+docker-compose.yml           warehouse Postgres + Airflow
+docker/                      Airflow image + requirements
+dags/taxi_pipeline.py        monthly DAG: load raw -> dbt seed/run/test
 etl/
-  extract.py                 file discovery helpers
-  load_raw.py                streams parquet -> raw.* via COPY, idempotent per source file
-  db.py                      connection helper (reads .env)
+  extract.py                 file discovery
+  load_raw.py                parquet -> raw.* via COPY, idempotent per file
+  db.py                      connection helper
   sql/raw/                   raw table DDL
 dbt/
-  profiles.yml                connection profile (reads env vars, no secrets committed)
+  profiles.yml
   taxi_analytics/
-    models/staging/           1:1 rename/cast of raw.yellow_trips, raw.green_trips
-    models/intermediate/      union + data-quality flag columns
-    models/marts/             dim_zone, dim_date, fact_trips, agg_daily_zone, agg_hourly_demand
-    analyses/                 standalone analytical SQL (window functions, anomaly detection)
-    seeds/taxi_zone_lookup.csv official TLC zone lookup
-notebooks/                   exploratory analysis (depends on marts)
-report/                      written findings for GitHub
-dashboard/                   Tableau workbook
+    models/staging/
+    models/intermediate/
+    models/marts/
+    analyses/                 hand-written analytical SQL
+    seeds/taxi_zone_lookup.csv
+notebooks/
+report/
+dashboard/
 ml/
   tip_prediction/
   fare_prediction/
   demand_forecast/
 ```
 
-## Data quality approach
+## Data cleaning
 
-Nothing is silently dropped in the pipeline. `int_trips_unioned` attaches
-boolean flag columns (`is_valid_fare`, `is_valid_distance`,
-`is_valid_passenger_count`, `is_valid_duration`, `is_known_zone`, rolled up
-into `is_valid_trip`) instead of filtering rows out — `fact_trips` keeps every
-row, and marts/analyses/ML all decide for themselves whether to filter on
-`is_valid_trip`. This keeps the raw shape of the data auditable and matches
-how a real warehouse handles messy source data (TLC trip data is known to
-contain negative fares, zero-distance trips with nonzero fares, and
-out-of-range timestamps).
+Cleaning happens in one place, not scattered across queries.
+
+`int_trips_unioned` computes QC flags per trip (valid fare, valid distance,
+valid passenger count, valid duration, known zone) but doesn't drop
+anything, so the flagged data is still inspectable.
+
+`fact_trips` is the actual gate: it only keeps rows where all the checks
+pass. Everything downstream (aggregates, analyses, dashboard, ML) reads from
+fact_trips, so it's working with clean data without having to filter itself.
+
+Rejected rows aren't thrown away either:
+- `rejected_trips` - excluded rows plus which check(s) they failed
+- `dq_summary` - rejection rate by taxi type / month
+- `dq_rejection_reasons` - counts by reason
+
+TLC data has the usual issues: negative fares, zero-distance trips with a
+fare attached, trip durations that don't make sense, unknown zone codes.
 
 ## Setup
 
-1. **Install Docker Desktop** (not yet installed on this machine): `brew install --cask docker`, then launch it once from Applications.
-2. **Configure environment**: `cp .env.example .env` and fill in real passwords.
-3. **Start the stack**:
-   ```
-   docker compose up -d --build
-   ```
-   This builds the Airflow image (with dbt baked in), starts both Postgres instances, runs `airflow db migrate` + creates the admin user, then starts the webserver (http://localhost:8080) and scheduler.
-4. **Install the dbt package dependency** (one-time, from inside the airflow-scheduler container):
+1. Make sure Docker Desktop is running.
+2. `cp .env.example .env` and fill in real passwords.
+3. `docker compose up -d --build`
+   Builds the Airflow image (dbt included), starts both Postgres instances,
+   runs migrations + creates the admin user, starts webserver (localhost:8080)
+   and scheduler.
+4. One-time: install the dbt package deps.
    ```
    docker compose exec airflow-scheduler bash -c "cd dbt/taxi_analytics && dbt deps --profiles-dir /opt/airflow/dbt"
    ```
-5. **Backfill the year** via the Airflow UI (unpause `taxi_pipeline`) or CLI:
+5. Backfill the year, via the Airflow UI or:
    ```
    docker compose exec airflow-scheduler airflow dags backfill taxi_pipeline -s 2025-01-01 -e 2025-12-01
    ```
-6. **Local Python env** for notebooks/ML (outside Docker):
+6. Local env for notebooks/ML:
    ```
    python -m venv .venv && source .venv/bin/activate
    pip install -r requirements.txt

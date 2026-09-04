@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: dim_zone
-    description: TLC taxi zone lookup (borough/zone/service_zone), seeded from the official TLC CSV.
+    description: TLC zone lookup (borough/zone/service_zone).
     columns:
       - name: location_id
         data_tests: [unique, not_null]
@@ -15,9 +15,9 @@ models:
 
   - name: fact_trips
     description: >
-      Grain: one row per trip. Incremental on pickup_datetime. Includes both
-      valid and flagged trips — filter on is_valid_trip downstream rather than
-      losing rows here.
+      One row per trip. Incremental on pickup_datetime. Only rows that pass
+      QC in int_trips_unioned end up here - rejected rows go to
+      rejected_trips instead.
     columns:
       - name: trip_id
         data_tests: [unique, not_null]
@@ -26,14 +26,24 @@ models:
           - relationships:
               to: ref('dim_zone')
               field: location_id
-              config:
-                severity: warn   # unknown-zone codes (264/265) are expected
       - name: taxi_type
         data_tests:
           - accepted_values: { values: ["yellow", "green"] }
 
   - name: agg_daily_zone
-    description: Trip counts/revenue/fare/tip aggregated by pickup date, taxi type, and zone.
+    description: Trip counts/revenue/fare/tip by pickup date, taxi type, zone.
 
   - name: agg_hourly_demand
-    description: Trip counts aggregated by pickup date, hour, taxi type, and zone. Feeds demand forecasting.
+    description: Trip counts by pickup date, hour, taxi type, zone. Feeds demand forecasting.
+
+  - name: rejected_trips
+    description: Trips excluded from fact_trips, with which QC check(s) they failed.
+    columns:
+      - name: rejection_reasons
+        data_tests: [not_null]
+
+  - name: dq_summary
+    description: Rejection rate by taxi type and month.
+
+  - name: dq_rejection_reasons
+    description: Rejected trip counts broken out by reason and taxi type.

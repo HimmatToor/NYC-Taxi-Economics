@@ -1,17 +1,15 @@
 """
 Load raw TLC parquet files into the `raw` schema of the warehouse Postgres DB.
 
-Loads are idempotent per source file: any existing rows for a given
-_source_file are deleted before the new load, so re-running a task (Airflow
-retry, manual backfill) never produces duplicates.
+Re-running for a file deletes its existing rows first (matched on
+_source_file), so retries and backfills don't create duplicates.
 
-Files are streamed in row-group batches via pyarrow rather than read fully
-into memory, since yellow months run ~3.5M rows / 20 columns each.
+Files are streamed in row-group batches with pyarrow instead of read fully
+into memory - yellow months are ~3.5M rows / 20 columns each.
 
-Usage:
-    python -m etl.load_raw --taxi-type yellow --month 2025-01
-    python -m etl.load_raw --taxi-type yellow --all
-    python -m etl.load_raw --taxi-type both --all
+python -m etl.load_raw --taxi-type yellow --month 2025-01
+python -m etl.load_raw --taxi-type yellow --all
+python -m etl.load_raw --taxi-type both --all
 """
 
 import argparse
@@ -25,8 +23,8 @@ from etl.extract import list_files, month_from_filename
 
 BATCH_SIZE = 500_000
 
-# Ordered explicitly (rather than trusting source column order) so a TLC
-# schema change is caught loudly instead of silently misaligning columns.
+# Explicit rather than trusting source column order, so a TLC schema change
+# gets caught instead of silently misaligning columns.
 YELLOW_COLUMNS = {
     "VendorID": "vendor_id",
     "tpep_pickup_datetime": "tpep_pickup_datetime",
@@ -89,8 +87,8 @@ def load_file(conn, taxi_type: str, file_path) -> int:
     missing = set(source_columns) - available
     if missing:
         raise ValueError(
-            f"{source_file}: missing expected columns {missing} — "
-            "TLC schema may have changed, update the column map."
+            f"{source_file}: missing expected columns {missing}, "
+            "TLC schema may have changed, update the column map"
         )
 
     with conn.cursor() as cur:

@@ -1,6 +1,4 @@
--- Month-over-month revenue growth by pickup zone, using LAG() to compare
--- each zone-month against its own prior month, then ranking zones within
--- each month by growth rate. Compile with `dbt compile` to get runnable SQL.
+-- month-over-month revenue growth by zone
 
 with monthly_zone_revenue as (
     select

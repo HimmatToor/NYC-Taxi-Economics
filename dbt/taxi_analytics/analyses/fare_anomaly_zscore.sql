@@ -1,7 +1,5 @@
--- Flags trips whose fare-per-mile is a statistical outlier for their own
--- taxi type, using a z-score (STDDEV/AVG window functions) rather than a
--- fixed threshold. |z| > 3 trips are candidates for overcharge/meter-error
--- investigation, and a useful sanity filter before training the fare model.
+-- trips where fare-per-mile is a statistical outlier for their taxi type (|z| > 3)
+-- candidates for overcharge/meter-error, also useful before training the fare model
 
 with fare_per_mile as (
     select
@@ -13,8 +11,7 @@ with fare_per_mile as (
         trip_distance,
         fare_amount / trip_distance as fare_per_mile
     from {{ ref('fact_trips') }}
-    where is_valid_trip
-      and trip_distance >= 0.5   -- avoid divide-by-near-zero noise
+    where trip_distance >= 0.5   -- avoid divide-by-near-zero noise
 ),
 
 scored as (

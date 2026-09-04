@@ -1,7 +1,4 @@
--- 7-day rolling average trip demand per borough, using a window frame
--- (ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) to smooth day-of-week noise
--- out of the raw daily counts. Useful as a sanity check against, and
--- feature-engineering reference for, the demand forecasting model.
+-- 7-day rolling average demand per borough, smooths out day-of-week noise
 
 with daily_borough_demand as (
     select
@@ -10,7 +7,6 @@ with daily_borough_demand as (
         count(*) as trip_count
     from {{ ref('fact_trips') }} f
     join {{ ref('dim_zone') }} z on f.pu_location_id = z.location_id
-    where f.is_valid_trip
     group by 1, 2
 )
 

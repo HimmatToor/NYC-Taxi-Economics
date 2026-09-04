@@ -16,12 +16,10 @@ venv/
 dbt/taxi_analytics/target/
 dbt/taxi_analytics/dbt_packages/
 dbt/taxi_analytics/logs/
-dbt/taxi_analytics/.user.yml
+dbt/.user.yml
 
 # Airflow
-logs/
-airflow/logs/
-airflow/plugins/__pycache__/
+airflow_logs/
 
 # macOS
 .DS_Store

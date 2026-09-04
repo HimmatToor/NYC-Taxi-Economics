@@ -30,6 +30,7 @@ models:
 seeds:
   taxi_analytics:
     +schema: seeds
+    +quote_columns: false
     taxi_zone_lookup:
       +column_types:
-        LocationID: integer
+        locationid: integer

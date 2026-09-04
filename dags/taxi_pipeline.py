@@ -1,12 +1,9 @@
 """
-Monthly taxi data pipeline: raw parquet -> Postgres raw layer -> dbt staging/marts.
+Monthly taxi pipeline: raw parquet -> Postgres raw layer -> dbt.
 
-Scheduled monthly for calendar year 2025 with catchup=True, so the full year
-is populated via Airflow's own backfill mechanism:
+Scheduled monthly for 2025 with catchup=True so the year can be backfilled:
 
     airflow dags backfill taxi_pipeline -s 2025-01-01 -e 2025-12-31
-
-Each run's data_interval_start maps to the YYYY-MM file for that month.
 """
 
 from datetime import datetime

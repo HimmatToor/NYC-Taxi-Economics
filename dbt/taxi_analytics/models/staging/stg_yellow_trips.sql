@@ -1,5 +1,4 @@
--- Rename/cast only. No filtering here — data quality flags live downstream
--- in int_trips_unioned so raw shape stays inspectable and nothing is silently dropped.
+-- rename/cast only, no filtering (QC flags happen in int_trips_unioned)
 
 with source as (
     select * from {{ source('raw', 'yellow_trips') }}
