@@ -1,8 +1,44 @@
 # NYC Taxi Economics
 
-Data engineering + analytics + ML project on NYC TLC yellow and green taxi
-trips, full calendar year 2025 (~42M trips). Looking at what drives fares,
-tipping, and demand across the taxi market, and how yellow and green compare.
+Data engineering + Analytics + ML project on NYC TLC yellow and green taxi
+trips, full calendar year 2025 (~35M cleaned trips). Looking at what drives
+fares, tipping, and demand across the taxi market, and how yellow and green
+compare.
+
+## What's built
+
+- **[dbt/taxi_analytics/](dbt/taxi_analytics/)** - staging to intermediate to marts
+  transformation layer, tested and documented. `fact_trips` is the cleaning
+  gate (only rows that pass QC get in); `rejected_trips`, `dq_summary`, and
+  `dq_rejection_reasons` are the audit trail for what got excluded and why.
+  [analyses/](dbt/taxi_analytics/analyses/) has four hand-written analytical
+  SQL queries (window functions, month-over-month growth, z-score anomaly
+  detection).
+- **[dags/taxi_pipeline.py](dags/taxi_pipeline.py)** - monthly Airflow DAG
+  that loads raw parquet and runs the dbt transformations. Backfilled the
+  full 2025 calendar year, ~35.3M trips end to end.
+- **[notebooks/taxi_economics_analysis.ipynb](notebooks/taxi_economics_analysis.ipynb)**
+  - the main analysis: data cleaning summary, market structure, demand
+  patterns, fare trends, and tipping behavior. Standout finding: tipping
+  collapses outside Manhattan (26% average tip vs. 0.9% in the Bronx, driven
+  by a 97% $0-tip rate on card payments there). Written up in
+  [report/findings.md](report/findings.md).
+- **[ml/](ml/)** - three models built on top of the analysis, each with a
+  time-based train/test split (train Jan-Oct, test Nov-Dec):
+  - [tip_prediction/](ml/tip_prediction/tip_prediction.ipynb) - R²=0.32;
+    confirms pickup borough is the strongest predictor of tip %.
+  - [fare_prediction/](ml/fare_prediction/fare_prediction.ipynb) - R²=0.93,
+    MAE=$1.18; independently recovers the airport-flat-rate effect from
+    location features alone, and doubles as a fare-anomaly detector.
+  - [demand_forecast/](ml/demand_forecast/demand_forecast.ipynb) - beats a
+    naive same-day-last-week baseline by 42% (MAPE 10.1% vs. 17.4%).
+
+  Results summarized in [report/ml_model_results.md](report/ml_model_results.md).
+- **[dashboard/nyc_taxi_economics.twbx](dashboard/nyc_taxi_economics.twbx)** -
+  Tableau dashboard covering the same KPIs interactively (market structure,
+  demand heatmap, fare trends, tipping by borough, data quality). PDF export
+  at [dashboard/nyc_dashboard.pdf](dashboard/nyc_dashboard.pdf) for a quick
+  look without opening Tableau.
 
 ## Architecture
 
@@ -40,12 +76,17 @@ dbt/
     analyses/                 hand-written analytical SQL
     seeds/taxi_zone_lookup.csv
 notebooks/
+  taxi_economics_analysis.ipynb
 report/
+  findings.md                 written analysis findings
+  ml_model_results.md         ML model results summary
 dashboard/
+  nyc_taxi_economics.twbx     Tableau packaged workbook
+  nyc_dashboard.pdf           static export
 ml/
-  tip_prediction/
-  fare_prediction/
-  demand_forecast/
+  tip_prediction/tip_prediction.ipynb
+  fare_prediction/fare_prediction.ipynb
+  demand_forecast/demand_forecast.ipynb
 ```
 
 ## Data cleaning
@@ -53,8 +94,8 @@ ml/
 Cleaning happens in one place, not scattered across queries.
 
 `int_trips_unioned` computes QC flags per trip (valid fare, valid distance,
-valid passenger count, valid duration, known zone) but doesn't drop
-anything, so the flagged data is still inspectable.
+valid passenger count, valid duration, known zone, valid pickup year) but
+doesn't drop anything, so the flagged data is still inspectable.
 
 `fact_trips` is the actual gate: it only keeps rows where all the checks
 pass. Everything downstream (aggregates, analyses, dashboard, ML) reads from
@@ -66,7 +107,8 @@ Rejected rows aren't thrown away either:
 - `dq_rejection_reasons` - counts by reason
 
 TLC data has the usual issues: negative fares, zero-distance trips with a
-fare attached, trip durations that don't make sense, unknown zone codes.
+fare attached, trip durations that don't make sense, unknown zone codes, and
+a handful of corrupted meter-clock timestamps.
 
 ## Setup
 

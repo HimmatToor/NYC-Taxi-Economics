@@ -24,5 +24,6 @@ airflow_logs/
 # macOS
 .DS_Store
 
-# Tableau (workbooks with embedded extracts can get huge; keep .twb, ignore .hyper extracts)
+# Tableau (workbooks with embedded extracts can get huge; keep .twb/.twbx, ignore .hyper extracts)
 dashboard/*.hyper
+dashboard/.~*.twbr
